@@ -1,11 +1,9 @@
 using System.Text;
 using System.Threading.RateLimiting;
-
 using MercadoU.Api.Application.Interfaces;
 using MercadoU.Api.Application.Services;
 using MercadoU.Api.Infrastructure.Data;
 using MercadoU.Api.Infrastructure.Repositories;
-
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
@@ -13,32 +11,28 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 // ==========================================================================
-// 1. CORS
+// 1. CORS - Configurado para Cloudflare y Localhost
 // ==========================================================================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendCorsPolicy", policy =>
     {
         policy.WithOrigins(
-            
-                "https://tu-frontend-mercadou.azurewebsites.net",
-                "http://localhost:8080",
-                "http://192.168.56.1:8080",
-                "http://192.168.1.154:8080",
-                "http://localhost:5173"
-              );
-              policy.AllowAnyOrigin()
+                "https://mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev", // Tu link de Cloudflare
+                "http://localhost:5173",
+                "http://localhost:8080"
+              )
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowCredentials(); // Necesario para Auth
     });
 });
 
 // ==========================================================================
 // 2. JWT Authentication
 // ==========================================================================
-var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? throw new InvalidOperationException("Jwt:Secret not configured.");
+var jwtSecret = builder.Configuration["Jwt:Secret"] 
+    ?? "TuClaveSuperSecretaQueDeberiasPonerEnRenderVariables"; 
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -47,9 +41,7 @@ builder.Services
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSecret)
-            ),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
             ValidateIssuer = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidateAudience = true,
@@ -72,20 +64,14 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 2
+                Window = TimeSpan.FromMinutes(1)
             }));
 });
 
 // ==========================================================================
-// 4. Connection Factory
+// 4. Inyección de Dependencias (SQL Factory y Repos)
 // ==========================================================================
 builder.Services.AddScoped<SqlConnectionFactory>();
-
-// ==========================================================================
-// 5. Repositories
-// ==========================================================================
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ILocationRepository, LocationRepository>();
@@ -94,73 +80,48 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IFavoriteRepository, FavoriteRepository>();
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
-
-// ==========================================================================
-// 6. Services
-// ==========================================================================
 builder.Services.AddScoped<AuthService>();
 
-// ==========================================================================
-// 7. Controllers
-// ==========================================================================
 builder.Services.AddControllers()
-    .AddJsonOptions(opts =>
-    {
-        opts.JsonSerializerOptions.PropertyNamingPolicy =
-            System.Text.Json.JsonNamingPolicy.CamelCase;
-
-        opts.JsonSerializerOptions.DefaultIgnoreCondition =
-            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    .AddJsonOptions(opts => {
+        opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
-// ==========================================================================
-// 8. Swagger
-// ==========================================================================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ==========================================================================
-// BUILD
-// ==========================================================================
+// FORZAR PUERTO 10000 PARA RENDER
+builder.WebHost.ConfigureKestrel(options => {
+    options.ListenAnyIP(10000);
+});
+
 var app = builder.Build();
 
 // ==========================================================================
-// PIPELINE
+// PIPELINE (ORDEN IMPORTANTE)
 // ==========================================================================
-// Deja estas dos líneas afuera del if
 app.UseSwagger();
-app.UseSwaggerUI(c => 
-{
+app.UseSwaggerUI(c => {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "MercadoU API V1");
-    c.RoutePrefix = "swagger"; // Esto mantiene la ruta en /swagger
+    c.RoutePrefix = "swagger";
 });
 
-if (app.Environment.IsDevelopment())
-{
-    // Puedes dejar esto vacío o borrar el bloque if
-}
-else
+if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/error");
-    app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// COMENTADO PARA EVITAR ERROR 502 EN RENDER
+// app.UseHttpsRedirection(); 
 
 app.UseCors("FrontendCorsPolicy");
-
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
-app.MapControllers()
-   .RequireRateLimiting("BasicRateLimit");
 
-app.MapGet("/health", () =>
-    Results.Ok(new
-    {
-        status = "healthy",
-        timestamp = DateTime.UtcNow
-    }));
+app.MapControllers().RequireRateLimiting("BasicRateLimit");
 
-app.Run();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", time = DateTime.UtcNow }));
+
+app.Run(); // Línea 166: Ahora debería iniciar sin Error 139
