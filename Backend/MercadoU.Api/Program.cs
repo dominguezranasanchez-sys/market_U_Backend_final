@@ -11,20 +11,20 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 // ==========================================================================
-// 1. CORS - Configurado para Cloudflare y Localhost
+// 1. CORS - Configurado para permitir a tu Frontend en Cloudflare
 // ==========================================================================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendCorsPolicy", policy =>
     {
         policy.WithOrigins(
-                "https://mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev", // Tu link de Cloudflare
+                "https://mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev", 
                 "http://localhost:5173",
                 "http://localhost:8080"
               )
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Necesario para Auth
+              .AllowCredentials(); // Necesario si manejas cookies o headers de Auth
     });
 });
 
@@ -54,7 +54,7 @@ builder.Services
 builder.Services.AddAuthorization();
 
 // ==========================================================================
-// 3. Rate Limiting
+// 3. Rate Limiting (Protección contra spam)
 // ==========================================================================
 builder.Services.AddRateLimiter(options =>
 {
@@ -69,7 +69,7 @@ builder.Services.AddRateLimiter(options =>
 });
 
 // ==========================================================================
-// 4. Inyección de Dependencias (SQL Factory y Repos)
+// 4. Inyección de Dependencias
 // ==========================================================================
 builder.Services.AddScoped<SqlConnectionFactory>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
@@ -90,7 +90,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// FORZAR PUERTO 10000 PARA RENDER
+// FORZAR PUERTO 10000 PARA RENDER (Soluciona el error de puerto)
 builder.WebHost.ConfigureKestrel(options => {
     options.ListenAnyIP(10000);
 });
@@ -98,12 +98,14 @@ builder.WebHost.ConfigureKestrel(options => {
 var app = builder.Build();
 
 // ==========================================================================
-// PIPELINE (ORDEN IMPORTANTE)
+// PIPELINE (EL ORDEN ES CRÍTICO AQUÍ)
 // ==========================================================================
+
+// Swagger debe estar al principio para pruebas
 app.UseSwagger();
 app.UseSwaggerUI(c => {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "MercadoU API V1");
-    c.RoutePrefix = "swagger";
+    c.RoutePrefix = "swagger"; // Acceso en /swagger
 });
 
 if (!app.Environment.IsDevelopment())
@@ -111,17 +113,18 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/error");
 }
 
-// COMENTADO PARA EVITAR ERROR 502 EN RENDER
-// app.UseHttpsRedirection(); 
-
+// IMPORTANTE: UseCors debe ir ANTES de Authentication y MapControllers
 app.UseCors("FrontendCorsPolicy");
+
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
 
+// Aplicar Rate Limiting a los controladores
 app.MapControllers().RequireRateLimiting("BasicRateLimit");
 
+// Endpoint de salud para Render
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", time = DateTime.UtcNow }));
 
-app.Run(); // Línea 166: Ahora debería iniciar sin Error 139
+app.Run();
