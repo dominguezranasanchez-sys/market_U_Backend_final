@@ -20,7 +20,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "https://mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev", 
                 "http://localhost:5173",
-                "http://localhost:8080"
+                "http://localhost:8080",
+                "update-worker-name-to-mercadou-frontend-v2-mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev"
               )
               .AllowAnyHeader()
               .AllowAnyMethod()
