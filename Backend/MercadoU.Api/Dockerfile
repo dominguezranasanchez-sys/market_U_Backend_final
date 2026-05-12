@@ -1,26 +1,26 @@
 # Etapa de compilación
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
-
-# Copiar archivos de proyecto y restaurar
-COPY ["MercadoU.Api.csproj", "./"]
-RUN dotnet restore "./MercadoU.Api.csproj"
-
-# Copiar el resto del código y publicar
-COPY . .
-RUN dotnet publish "MercadoU.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
-
-# Etapa final (Runtime)
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/sdk:8.0-jammy AS build
 WORKDIR /app
 
-# Instalar librerías necesarias para SQL Server en Linux (Evita el error 139)
+# Copiar archivos y restaurar
+COPY *.csproj ./
+RUN dotnet restore
+
+# Publicar
+COPY . ./
+RUN dotnet publish -c Release -o out /p:UseAppHost=false
+
+# Etapa de ejecución (Usando Ubuntu Jammy para evitar el error 139)
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy
+WORKDIR /app
+COPY --from=build /app/out .
+
+# Instalar dependencias necesarias para SQL Server y Globalización
 RUN apt-get update && apt-get install -y libicu-dev libssl-dev && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /app/publish .
-
-# Forzar puerto de Render
-ENV ASPNETCORE_URLS=http://0.0.0.0:10000
+# Configuración de puerto para Render
+ENV ASPNETCORE_URLS=http://+:10000
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 EXPOSE 10000
 
 ENTRYPOINT ["dotnet", "MercadoU.Api.dll"]
