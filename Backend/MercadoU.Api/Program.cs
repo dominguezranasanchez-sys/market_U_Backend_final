@@ -20,12 +20,14 @@ builder.Services.AddCors(options =>
     options.AddPolicy("FrontendCorsPolicy", policy =>
     {
         policy.WithOrigins(
+            
                 "https://tu-frontend-mercadou.azurewebsites.net",
                 "http://localhost:8080",
                 "http://192.168.56.1:8080",
                 "http://192.168.1.154:8080",
                 "http://localhost:5173"
-              )
+              );
+              policy.AllowAnyOrigin()
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -148,7 +150,6 @@ app.UseHttpsRedirection();
 app.UseCors("FrontendCorsPolicy");
 
 app.UseRateLimiter();
-
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
