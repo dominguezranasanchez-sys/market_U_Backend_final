@@ -1,23 +1,26 @@
-# Usa el SDK de .NET 8 para construir
+# Etapa de compilación
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /app
+WORKDIR /src
 
-# Copiar el archivo de proyecto y restaurar dependencias
-# Nota: Si tu archivo .csproj se llama exactamente MercadoU.Api.csproj esto funcionará
-COPY *.csproj ./
-RUN dotnet restore
+# Copiar archivos de proyecto y restaurar
+COPY ["MercadoU.Api.csproj", "./"]
+RUN dotnet restore "./MercadoU.Api.csproj"
 
-# Copiar todo el código y publicar en la carpeta 'out'
-COPY . ./
-RUN dotnet publish -c Release -o out
+# Copiar el resto del código y publicar
+COPY . .
+RUN dotnet publish "MercadoU.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-# Imagen ligera para ejecutar la app
+# Etapa final (Runtime)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
-COPY --from=build /app/out .
 
-# Obligar a la app a usar el puerto de Render
-ENV ASPNETCORE_URLS=http://+:10000
+# Instalar librerías necesarias para SQL Server en Linux (Evita el error 139)
+RUN apt-get update && apt-get install -y libicu-dev libssl-dev && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app/publish .
+
+# Forzar puerto de Render
+ENV ASPNETCORE_URLS=http://0.0.0.0:10000
 EXPOSE 10000
 
 ENTRYPOINT ["dotnet", "MercadoU.Api.dll"]
