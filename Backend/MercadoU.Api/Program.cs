@@ -21,7 +21,8 @@ builder.Services.AddCors(options =>
                 "https://mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev", 
                 "http://localhost:5173",
                 "http://localhost:8080",
-                "update-worker-name-to-mercadou-frontend-v2-mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev"
+                "update-worker-name-to-mercadou-frontend-v2-mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev",
+                "https://peppy-crumble-705bb6.netlify.app" 
               )
               .AllowAnyHeader()
               .AllowAnyMethod()
@@ -115,14 +116,12 @@ if (!app.Environment.IsDevelopment())
 }
 
 // IMPORTANTE: UseCors debe ir ANTES de Authentication y MapControllers
-app.UseCors("FrontendCorsPolicy");
-
+app.UseCors("FrontendCorsPolicy");  // ✅ este queda
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
-
-// Aplicar Rate Limiting a los controladores
+// app.UseCors("Web");  ← ELIMINA esta línea
 app.MapControllers().RequireRateLimiting("BasicRateLimit");
 
 // Endpoint de salud para Render
