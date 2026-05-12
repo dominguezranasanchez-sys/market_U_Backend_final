@@ -125,10 +125,17 @@ var app = builder.Build();
 // ==========================================================================
 // PIPELINE
 // ==========================================================================
+// Deja estas dos líneas afuera del if
+app.UseSwagger();
+app.UseSwaggerUI(c => 
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "MercadoU API V1");
+    c.RoutePrefix = "swagger"; // Esto mantiene la ruta en /swagger
+});
+
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    // Puedes dejar esto vacío o borrar el bloque if
 }
 else
 {
