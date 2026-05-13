@@ -30,8 +30,6 @@ public record UserDto(
     decimal AverageRating,
     string? AvatarUrl);   // maps from ProfilePictureUrl
 
-// FIX: ReviewDto expone exactamente los campos que el frontend espera.
-//      Se mantiene CreatedAt para compatibilidad pero el frontend lo ignora si no lo usa.
 public record ReviewDto(
     int Id,
     int AuthorId,
@@ -41,7 +39,7 @@ public record ReviewDto(
     DateTime CreatedAt);
 
 // ============================================================
-// Products  — shape que espera el frontend React
+// Products
 // ============================================================
 
 public record ProductDto(
@@ -54,12 +52,12 @@ public record ProductDto(
     int CategoryId,
     int? LocationId,
     int? UniversityId,
-    string Condition,      // normalizado: "new" | "used"
-    string Status,         // "active" | "sold" | "paused"
+    string Condition,
+    string Status,
     int ViewCount,
     int FavoriteCount,
     string? PrimaryImageUrl,
-    string CreatedAt);     // ISO-8601
+    string CreatedAt);
 
 public record ProductImageDto(
     int ProductId,
@@ -76,12 +74,12 @@ public record CreateProductRequest(
     int LocationId,
     int? UniversityId,
     int SellerId,
-    string Condition);     // "new" | "used" from frontend
+    string Condition);
 
 public record AddImageRequest(string Url, bool IsPrimary);
 
 // ============================================================
-// Product Search  — maps to sp_SearchProducts
+// Product Search
 // ============================================================
 
 public record ProductSearchParams(
@@ -133,14 +131,30 @@ public record ConversationDto(
     DateTime? LastMessageAt);
 
 /// <summary>
-/// Request completo (interno): incluye BuyerId resuelto del JWT.
+/// DTO enriquecido para el inbox del chat.
+/// Incluye datos del otro participante, del producto y el conteo de no leídos.
 /// </summary>
+public record ConversationInboxDto(
+    int Id,
+    int BuyerId,
+    string BuyerName,
+    string? BuyerPicture,
+    int SellerId,
+    string SellerName,
+    string? SellerPicture,
+    int ProductId,
+    string ProductTitle,
+    decimal ProductPrice,
+    string? ProductThumbnail,
+    DateTime? LastMessageAt,
+    string? LastMessageContent,
+    int? LastMessageSenderId,
+    int UnreadCount);
+
+/// <summary>Request completo (interno): incluye BuyerId resuelto del JWT.</summary>
 public record StartConversationRequest(int BuyerId, int SellerId, int ProductId);
 
-/// <summary>
-/// FIX: Request que manda el frontend — solo sellerId + productId.
-///      El buyerId se extrae del JWT en el controlador.
-/// </summary>
+/// <summary>Request que manda el frontend — solo sellerId + productId.</summary>
 public record StartConversationFromFrontendRequest(int SellerId, int ProductId);
 
 public record MessageDto(
@@ -152,6 +166,10 @@ public record MessageDto(
     bool IsRead,
     string SentAt);    // ISO-8601
 
+// CORREGIDO: solo Content viene del body. SenderId se saca del JWT en el controlador.
+public record SendMessageBodyRequest(string Content);
+
+// Mantener por compatibilidad interna si se usa en otro sitio
 public record SendMessageRequest(int SenderId, string Content);
 
 // ============================================================

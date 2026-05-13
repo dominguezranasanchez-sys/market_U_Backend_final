@@ -1,4 +1,8 @@
 using Dapper;
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using MercadoU.Api.Application.Interfaces;
 using MercadoU.Api.DTOs;
 using MercadoU.Api.Infrastructure.Data;
@@ -25,7 +29,6 @@ public sealed class UserRepository(SqlConnectionFactory db) : IUserRepository
         return await conn.QueryFirstOrDefaultAsync<UserDto>(sql, new { Id = id });
     }
 
-    /// <summary>Returns PasswordHash alongside UserDto for auth validation.</summary>
     public async Task<(string PasswordHash, UserDto User)?> GetByEmailAsync(string email)
     {
         using var conn = await db.CreateAsync();
@@ -136,7 +139,6 @@ public sealed class FavoriteRepository(SqlConnectionFactory db) : IFavoriteRepos
             CreatedAt:       ((DateTime)r.CreatedAt).ToString("o")));
     }
 
-    /// <summary>Toggle favorite. Returns true if now active, false if removed.</summary>
     public async Task<bool> ToggleAsync(int userId, int productId)
     {
         using var conn = await db.CreateAsync();
@@ -151,7 +153,6 @@ public sealed class FavoriteRepository(SqlConnectionFactory db) : IFavoriteRepos
                 "DELETE FROM Favorites WHERE Id = @Id",
                 new { Id = existing.Value });
 
-            // Decrement counter
             await conn.ExecuteAsync(
                 "UPDATE Products SET FavoriteCount = FavoriteCount - 1 WHERE Id = @ProductId AND FavoriteCount > 0",
                 new { ProductId = productId });
@@ -163,7 +164,6 @@ public sealed class FavoriteRepository(SqlConnectionFactory db) : IFavoriteRepos
             "INSERT INTO Favorites (UserId, ProductId) VALUES (@UserId, @ProductId)",
             new { UserId = userId, ProductId = productId });
 
-        // Increment counter
         await conn.ExecuteAsync(
             "UPDATE Products SET FavoriteCount = FavoriteCount + 1 WHERE Id = @ProductId",
             new { ProductId = productId });
@@ -177,6 +177,76 @@ public sealed class FavoriteRepository(SqlConnectionFactory db) : IFavoriteRepos
 // ======================================================================
 public sealed class ConversationRepository(SqlConnectionFactory db) : IConversationRepository
 {
+    /// <summary>
+    /// Inbox enriquecido: nombre del otro usuario, producto, último mensaje, no-leídos.
+    /// Usa la vista vw_ConversationInbox ya existente en la BD + subconsulta de unread.
+    /// </summary>
+    public async Task<IEnumerable<ConversationInboxDto>> GetInboxByUserAsync(int userId)
+    {
+        using var conn = await db.CreateAsync();
+
+        // Consulta directa sin depender de la vista para mayor control y compatibilidad
+        const string sql = """
+            SELECT
+                c.Id,
+                c.BuyerId,
+                buyer.FirstName + ' ' + buyer.LastName   AS BuyerName,
+                buyer.ProfilePictureUrl                  AS BuyerPicture,
+                c.SellerId,
+                seller.FirstName + ' ' + seller.LastName AS SellerName,
+                seller.ProfilePictureUrl                 AS SellerPicture,
+                c.ProductId,
+                p.Title                                  AS ProductTitle,
+                p.Price                                  AS ProductPrice,
+                pi_img.Url                               AS ProductThumbnail,
+                c.LastMessageAt,
+                last_msg.Content                         AS LastMessageContent,
+                last_msg.SenderId                        AS LastMessageSenderId,
+                ISNULL((
+                    SELECT COUNT(*)
+                    FROM Messages m
+                    WHERE m.ConversationId = c.Id
+                      AND m.IsRead = 0
+                      AND m.SenderId <> @UserId
+                      AND m.IsDeleted = 0
+                ), 0)                                    AS UnreadCount
+            FROM Conversations c
+            INNER JOIN Users buyer  ON c.BuyerId  = buyer.Id
+            INNER JOIN Users seller ON c.SellerId = seller.Id
+            INNER JOIN Products p   ON c.ProductId = p.Id
+            LEFT  JOIN ProductImages pi_img
+                ON pi_img.ProductId = p.Id AND pi_img.IsPrimary = 1
+            OUTER APPLY (
+                SELECT TOP 1 Content, SenderId
+                FROM Messages m2
+                WHERE m2.ConversationId = c.Id AND m2.IsDeleted = 0
+                ORDER BY m2.SentAt DESC
+            ) last_msg
+            WHERE c.BuyerId = @UserId OR c.SellerId = @UserId
+            ORDER BY c.LastMessageAt DESC
+            """;
+
+        var rows = await conn.QueryAsync(sql, new { UserId = userId });
+
+        return rows.Select(r => new ConversationInboxDto(
+            Id:                   (int)r.Id,
+            BuyerId:              (int)r.BuyerId,
+            BuyerName:            (string)r.BuyerName,
+            BuyerPicture:         (string?)r.BuyerPicture,
+            SellerId:             (int)r.SellerId,
+            SellerName:           (string)r.SellerName,
+            SellerPicture:        (string?)r.SellerPicture,
+            ProductId:            (int)r.ProductId,
+            ProductTitle:         (string)r.ProductTitle,
+            ProductPrice:         (decimal)r.ProductPrice,
+            ProductThumbnail:     (string?)r.ProductThumbnail,
+            LastMessageAt:        (DateTime?)r.LastMessageAt,
+            LastMessageContent:   (string?)r.LastMessageContent,
+            LastMessageSenderId:  (int?)r.LastMessageSenderId,
+            UnreadCount:          (int)r.UnreadCount));
+    }
+
+    /// <summary>Lista plana de conversaciones (para UsersController).</summary>
     public async Task<IEnumerable<ConversationDto>> GetByUserAsync(int userId)
     {
         using var conn = await db.CreateAsync();
@@ -195,7 +265,10 @@ public sealed class ConversationRepository(SqlConnectionFactory db) : IConversat
     {
         using var conn = await db.CreateAsync();
 
-        // UQ_Conversations_Unique (BuyerId, SellerId, ProductId) garantiza unicidad en BD
+        // Si el usuario intenta chatear consigo mismo, rechazar
+        if (req.BuyerId == req.SellerId)
+            throw new InvalidOperationException("Un usuario no puede iniciar una conversación consigo mismo.");
+
         const string selectSql = """
             SELECT Id, BuyerId, SellerId, ProductId, LastMessageAt
             FROM Conversations
@@ -230,7 +303,7 @@ public sealed class MessageRepository(SqlConnectionFactory db) : IMessageReposit
 {
     public async Task<IEnumerable<MessageDto>> GetByConversationAsync(int conversationId)
     {
-       using var conn = await db.CreateAsync();
+        using var conn = await db.CreateAsync();
 
         const string sql = """
             SELECT Id, ConversationId, SenderId, Content, MessageType, IsRead, SentAt
@@ -241,42 +314,109 @@ public sealed class MessageRepository(SqlConnectionFactory db) : IMessageReposit
 
         var rows = await conn.QueryAsync(sql, new { ConversationId = conversationId });
 
-        return rows.Select(r => new MessageDto(
-            Id:             (int)r.Id,
-            ConversationId: (int)r.ConversationId,
-            SenderId:       (int)r.SenderId,
-            Content:        (string)r.Content,
-            MessageType:    (string)r.MessageType,
-            IsRead:         r.IsRead == true,
-            SentAt:         ((DateTime)r.SentAt).ToString("o")));
+        return rows.Select(MapRow);
     }
 
-    public async Task<MessageDto> SendAsync(int conversationId, SendMessageRequest req)
+    /// <summary>
+    /// Polling incremental: devuelve solo mensajes más nuevos que lastTimestamp.
+    /// Si lastTimestamp es null, devuelve todos (carga inicial).
+    /// Usa el índice IX_Messages_Conversation_SentAt.
+    /// </summary>
+    public async Task<IEnumerable<MessageDto>> GetDeltaMessagesAsync(int conversationId, DateTime? lastTimestamp)
     {
-     using var conn = await db.CreateAsync();
+        using var conn = await db.CreateAsync();
 
+        const string sql = """
+            SELECT Id, ConversationId, SenderId, Content, MessageType, IsRead, SentAt
+            FROM Messages
+            WHERE ConversationId = @ConversationId
+              AND (@LastTimestamp IS NULL OR SentAt > @LastTimestamp)
+              AND IsDeleted = 0
+            ORDER BY SentAt ASC
+            """;
+
+        var rows = await conn.QueryAsync(sql, new
+        {
+            ConversationId = conversationId,
+            LastTimestamp  = lastTimestamp
+        });
+
+        return rows.Select(MapRow);
+    }
+
+    /// <summary>
+    /// Envía un mensaje y actualiza LastMessageAt en la conversación en la misma operación.
+    /// SenderId viene del JWT (controlador), nunca del body.
+    /// </summary>
+    public async Task<MessageDto> SendAsync(int conversationId, int senderId, string content)
+    {
+        using var conn = await db.CreateAsync();
+
+        // Verificar que la conversación existe y el sender es participante
+        var check = await conn.QueryFirstOrDefaultAsync<(int BuyerId, int SellerId)>(
+            "SELECT BuyerId, SellerId FROM Conversations WHERE Id = @Id",
+            new { Id = conversationId });
+
+        if (check == default)
+            throw new KeyNotFoundException($"Conversación {conversationId} no encontrada.");
+
+        if (check.BuyerId != senderId && check.SellerId != senderId)
+            throw new UnauthorizedAccessException("No eres participante de esta conversación.");
+
+        // INSERT y UPDATE LastMessageAt en una sola operación con OUTPUT
         const string sql = """
             INSERT INTO Messages (ConversationId, SenderId, Content, MessageType)
             OUTPUT INSERTED.Id, INSERTED.ConversationId, INSERTED.SenderId,
                    INSERTED.Content, INSERTED.MessageType, INSERTED.IsRead, INSERTED.SentAt
-            VALUES (@ConversationId, @SenderId, @Content, 'Text')
+            VALUES (@ConversationId, @SenderId, @Content, 'Text');
             """;
 
-        // El trigger trg_Messages_UpdateConversationLastMessage actualiza Conversations.LastMessageAt
         var row = await conn.QuerySingleAsync(sql, new
         {
             ConversationId = conversationId,
-            req.SenderId,
-            req.Content
+            SenderId       = senderId,
+            Content        = content
         });
 
-        return new MessageDto(
-            Id:             (int)row.Id,
-            ConversationId: (int)row.ConversationId,
-            SenderId:       (int)row.SenderId,
-            Content:        (string)row.Content,
-            MessageType:    (string)row.MessageType,
-            IsRead:         row.IsRead == true,
-            SentAt:         ((DateTime)row.SentAt).ToString("o"));
+        // El trigger trg_Messages_UpdateConversationLastMessage ya actualiza LastMessageAt.
+        // Si no existe el trigger en tu BD, descomenta esto:
+        // await conn.ExecuteAsync(
+        //     "UPDATE Conversations SET LastMessageAt = SYSDATETIME() WHERE Id = @Id",
+        //     new { Id = conversationId });
+
+        return MapRow(row);
     }
+
+    /// <summary>Marca como leídos todos los mensajes del otro usuario en esta conversación.</summary>
+    public async Task MarkAsReadAsync(int conversationId, int userId)
+    {
+        using var conn = await db.CreateAsync();
+
+        const string sql = """
+            UPDATE Messages
+            SET IsRead = 1
+            WHERE ConversationId = @ConversationId
+              AND SenderId <> @UserId
+              AND IsRead = 0
+              AND IsDeleted = 0
+            """;
+
+        await conn.ExecuteAsync(sql, new
+        {
+            ConversationId = conversationId,
+            UserId         = userId
+        });
+    }
+
+    // ---------------------------------------------------------------
+    // Helper de mapeo centralizado (evita duplicación)
+    // ---------------------------------------------------------------
+    private static MessageDto MapRow(dynamic r) => new(
+        Id:             (int)r.Id,
+        ConversationId: (int)r.ConversationId,
+        SenderId:       (int)r.SenderId,
+        Content:        (string)r.Content,
+        MessageType:    (string)r.MessageType,
+        IsRead:         r.IsRead == true,
+        SentAt:         ((DateTime)r.SentAt).ToString("o"));
 }

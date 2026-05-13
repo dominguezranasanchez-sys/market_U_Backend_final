@@ -1,13 +1,17 @@
-namespace MercadoU.Api.DTOs 
-{
-    public class StartChatDto
-    {
-        public Guid ProductId { get; set; }
-        public Guid SellerId { get; set; }
-    }
-
-    public class SendMessageDto
-    {
-        public string Content { get; set; } = string.Empty;
-    }
-}
+// ARCHIVO HISTÓRICO - DTOs MIGRADOS A Dtos.cs
+//
+// Este archivo contenía DTOs obsoletos:
+//   - StartChatDto { Guid ProductId, Guid SellerId } ← INCORRECTO
+//   - SendMessageDto { string Content }
+//
+// DTOs CORRECTOS están en Dtos.cs:
+//   - StartConversationFromFrontendRequest { int SellerId, int ProductId }
+//   - SendMessageBodyRequest { string Content }
+//   - ConversationInboxDto { ... con datos enriquecidos }
+//   - MessageDto { ... con SentAt en lugar de CreatedAt }
+//
+// Problema anterior:
+// Frontend envía INT, pero DTO esperaba GUID → type mismatch
+//
+// Solución:
+// Usar Dtos.cs que tiene tipos correctos.

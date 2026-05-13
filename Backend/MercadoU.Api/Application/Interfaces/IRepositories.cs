@@ -43,12 +43,19 @@ public interface IFavoriteRepository
 
 public interface IConversationRepository
 {
+    // Devuelve conversaciones enriquecidas con datos del otro usuario, producto y no-leídos
+    Task<IEnumerable<ConversationInboxDto>> GetInboxByUserAsync(int userId);
+
+    // Mantener para compatibilidad con UsersController (GET /api/users/{id}/conversations)
     Task<IEnumerable<ConversationDto>> GetByUserAsync(int userId);
+
     Task<ConversationDto> GetOrCreateAsync(StartConversationRequest req);
 }
 
 public interface IMessageRepository
 {
     Task<IEnumerable<MessageDto>> GetByConversationAsync(int conversationId);
-    Task<MessageDto> SendAsync(int conversationId, SendMessageRequest req);
+    Task<MessageDto> SendAsync(int conversationId, int senderId, string content);
+    Task<IEnumerable<MessageDto>> GetDeltaMessagesAsync(int conversationId, DateTime? lastTimestamp);
+    Task MarkAsReadAsync(int conversationId, int userId);
 }

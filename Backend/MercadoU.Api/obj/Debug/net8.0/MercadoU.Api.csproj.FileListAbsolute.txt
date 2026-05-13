@@ -60,6 +60,7 @@ C:\Users\domin\Desktop\supermarkert\Backend\Backend\MercadoU.Api\obj\Debug\net8.
 C:\Users\domin\Desktop\supermarkert\Backend\Backend\MercadoU.Api\obj\Debug\net8.0\MercadoU.Api.csproj.CoreCompileInputs.cache
 C:\Users\domin\Desktop\supermarkert\Backend\Backend\MercadoU.Api\obj\Debug\net8.0\MercadoU.Api.MvcApplicationPartsAssemblyInfo.cs
 C:\Users\domin\Desktop\supermarkert\Backend\Backend\MercadoU.Api\obj\Debug\net8.0\MercadoU.Api.MvcApplicationPartsAssemblyInfo.cache
+C:\Users\domin\Desktop\supermarkert\Backend\Backend\MercadoU.Api\obj\Debug\net8.0\MercadoU.Api.sourcelink.json
 C:\Users\domin\Desktop\supermarkert\Backend\Backend\MercadoU.Api\obj\Debug\net8.0\rjimswa.dswa.cache.json
 C:\Users\domin\Desktop\supermarkert\Backend\Backend\MercadoU.Api\obj\Debug\net8.0\rjsmrazor.dswa.cache.json
 C:\Users\domin\Desktop\supermarkert\Backend\Backend\MercadoU.Api\obj\Debug\net8.0\rjsmcshtml.dswa.cache.json

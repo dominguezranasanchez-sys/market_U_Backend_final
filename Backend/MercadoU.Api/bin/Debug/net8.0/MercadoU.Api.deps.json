@@ -9,7 +9,7 @@
       "MercadoU.Api/1.0.0": {
         "dependencies": {
           "BCrypt.Net-Next": "4.0.3",
-          "Dapper": "2.1.35",
+          "Dapper": "2.1.72",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.0",
           "Microsoft.Data.SqlClient": "7.0.1",
           "Swashbuckle.AspNetCore": "6.6.2"
@@ -26,11 +26,11 @@
           }
         }
       },
-      "Dapper/2.1.35": {
+      "Dapper/2.1.72": {
         "runtime": {
-          "lib/net7.0/Dapper.dll": {
+          "lib/net8.0/Dapper.dll": {
             "assemblyVersion": "2.0.0.0",
-            "fileVersion": "2.1.35.13827"
+            "fileVersion": "2.1.72.10375"
           }
         }
       },
@@ -417,12 +417,12 @@
       "path": "bcrypt.net-next/4.0.3",
       "hashPath": "bcrypt.net-next.4.0.3.nupkg.sha512"
     },
-    "Dapper/2.1.35": {
+    "Dapper/2.1.72": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-YKRwjVfrG7GYOovlGyQoMvr1/IJdn+7QzNXJxyMh0YfFF5yvDmTYaJOVYWsckreNjGsGSEtrMTpnzxTUq/tZQw==",
-      "path": "dapper/2.1.35",
-      "hashPath": "dapper.2.1.35.nupkg.sha512"
+      "sha512": "sha512-ns4mGqQd9a/MhP8m6w556vVlZIa0/MfUu03zrxjZC/jlr1uVCsUac8bkdB+Fs98Llbd56rRSo1eZH5VVmeGZyw==",
+      "path": "dapper/2.1.72",
+      "hashPath": "dapper.2.1.72.nupkg.sha512"
     },
     "Microsoft.AspNetCore.Authentication.JwtBearer/8.0.0": {
       "type": "package",

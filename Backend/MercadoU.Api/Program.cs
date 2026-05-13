@@ -7,35 +7,32 @@ using MercadoU.Api.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
-using MercadoU.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ==========================================================================
-// 1. CORS - Configurado para permitir a tu Frontend en Cloudflare
+// 1. CORS
 // ==========================================================================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendCorsPolicy", policy =>
     {
         policy.WithOrigins(
-                "https://mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev", 
+                "https://peppy-crumble-705bb6.netlify.app",
                 "http://localhost:5173",
-                "http://localhost:8080",
-                "update-worker-name-to-mercadou-frontend-v2-mercadou-frontend-v2.dominguez-rana-sanchez.workers.dev",
-                "https://peppy-crumble-705bb6.netlify.app" 
+                "http://localhost:8080"
               )
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // Necesario si manejas cookies o headers de Auth
+              .AllowCredentials();
     });
 });
 
 // ==========================================================================
 // 2. JWT Authentication
 // ==========================================================================
-var jwtSecret = builder.Configuration["Jwt:Secret"] 
-    ?? "TuClaveSuperSecretaQueDeberiasPonerEnRenderVariables"; 
+var jwtSecret = builder.Configuration["Jwt:Secret"]
+    ?? throw new InvalidOperationException("Jwt:Secret no configurado. Añádelo en las variables de entorno de Render.");
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -45,19 +42,19 @@ builder.Services
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateIssuer   = true,
+            ValidIssuer      = builder.Configuration["Jwt:Issuer"],
             ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidAudience    = builder.Configuration["Jwt:Audience"],
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew        = TimeSpan.Zero
         };
     });
 
 builder.Services.AddAuthorization();
 
 // ==========================================================================
-// 3. Rate Limiting (Protección contra spam)
+// 3. Rate Limiting
 // ==========================================================================
 builder.Services.AddRateLimiter(options =>
 {
@@ -67,48 +64,49 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1)
+                Window      = TimeSpan.FromMinutes(1)
             }));
 });
 
 // ==========================================================================
-// 4. Inyección de Dependencias
+// 4. Inyección de Dependencias — Dapper, sin ChatService ni ChatController
 // ==========================================================================
 builder.Services.AddScoped<SqlConnectionFactory>();
-builder.Services.AddScoped<IProductRepository, ProductRepository>();
-builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
-builder.Services.AddScoped<ILocationRepository, LocationRepository>();
-builder.Services.AddScoped<IUniversityRepository, UniversityRepository>();
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IFavoriteRepository, FavoriteRepository>();
+builder.Services.AddScoped<IProductRepository,      ProductRepository>();
+builder.Services.AddScoped<ICategoryRepository,     CategoryRepository>();
+builder.Services.AddScoped<ILocationRepository,     LocationRepository>();
+builder.Services.AddScoped<IUniversityRepository,   UniversityRepository>();
+builder.Services.AddScoped<IUserRepository,         UserRepository>();
+builder.Services.AddScoped<IFavoriteRepository,     FavoriteRepository>();
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
-builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<IMessageRepository,      MessageRepository>();
 builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<ChatService>();
+
 builder.Services.AddControllers()
-    .AddJsonOptions(opts => {
+    .AddJsonOptions(opts =>
+    {
         opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// FORZAR PUERTO 10000 PARA RENDER (Soluciona el error de puerto)
-builder.WebHost.ConfigureKestrel(options => {
+// Puerto Render
+builder.WebHost.ConfigureKestrel(options =>
+{
     options.ListenAnyIP(10000);
 });
 
 var app = builder.Build();
 
 // ==========================================================================
-// PIPELINE (EL ORDEN ES CRÍTICO AQUÍ)
+// PIPELINE — el orden es crítico
 // ==========================================================================
-
-// Swagger debe estar al principio para pruebas
 app.UseSwagger();
-app.UseSwaggerUI(c => {
+app.UseSwaggerUI(c =>
+{
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "MercadoU API V1");
-    c.RoutePrefix = "swagger"; // Acceso en /swagger
+    c.RoutePrefix = "swagger";
 });
 
 if (!app.Environment.IsDevelopment())
@@ -116,16 +114,15 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/error");
 }
 
-// IMPORTANTE: UseCors debe ir ANTES de Authentication y MapControllers
-app.UseCors("FrontendCorsPolicy");  // ✅ este queda
+// CORS PRIMERO — antes de auth
+app.UseCors("FrontendCorsPolicy");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseStaticFiles();
-// app.UseCors("Web");  ← ELIMINA esta línea
 app.MapControllers().RequireRateLimiting("BasicRateLimit");
 
-// Endpoint de salud para Render
+// Health check para Render
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", time = DateTime.UtcNow }));
 
 app.Run();
