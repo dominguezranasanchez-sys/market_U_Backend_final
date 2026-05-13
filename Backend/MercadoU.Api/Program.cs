@@ -7,6 +7,7 @@ using MercadoU.Api.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using MercadoU.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -83,7 +84,7 @@ builder.Services.AddScoped<IFavoriteRepository, FavoriteRepository>();
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 builder.Services.AddScoped<AuthService>();
-
+builder.Services.AddScoped<ChatService>();
 builder.Services.AddControllers()
     .AddJsonOptions(opts => {
         opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;

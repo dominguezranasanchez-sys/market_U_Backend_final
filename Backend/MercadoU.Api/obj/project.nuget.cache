@@ -1,11 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "iT5Jjd80vWM=",
+  "dgSpecHash": "6ulhgsyOuaU=",
   "success": true,
   "projectFilePath": "C:\\Users\\domin\\Desktop\\supermarkert\\Backend\\Backend\\MercadoU.Api\\MercadoU.Api.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\domin\\.nuget\\packages\\bcrypt.net-next\\4.0.3\\bcrypt.net-next.4.0.3.nupkg.sha512",
-    "C:\\Users\\domin\\.nuget\\packages\\dapper\\2.1.35\\dapper.2.1.35.nupkg.sha512",
+    "C:\\Users\\domin\\.nuget\\packages\\dapper\\2.1.72\\dapper.2.1.72.nupkg.sha512",
     "C:\\Users\\domin\\.nuget\\packages\\microsoft.aspnetcore.authentication.jwtbearer\\8.0.0\\microsoft.aspnetcore.authentication.jwtbearer.8.0.0.nupkg.sha512",
     "C:\\Users\\domin\\.nuget\\packages\\microsoft.bcl.cryptography\\8.0.0\\microsoft.bcl.cryptography.8.0.0.nupkg.sha512",
     "C:\\Users\\domin\\.nuget\\packages\\microsoft.data.sqlclient\\7.0.1\\microsoft.data.sqlclient.7.0.1.nupkg.sha512",

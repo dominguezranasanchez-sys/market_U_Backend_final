@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <!-- Dapper: micro-ORM de alto rendimiento -->
-    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="Dapper" Version="2.1.72" />
 
     <!-- SQL Server driver -->
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
