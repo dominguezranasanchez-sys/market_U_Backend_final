@@ -18,11 +18,19 @@ public sealed class AuthService(
     private readonly string _issuer   = configuration["Jwt:Issuer"]   ?? "MercadoU.Api";
     private readonly string _audience = configuration["Jwt:Audience"] ?? "MercadoU.Frontend";
 
+    // FIX: Se aumenta la expiración por defecto a 168 horas (7 días) para evitar
+    //      que el token expire rápidamente en sesiones normales de usuario.
+    //      Configurable via Jwt:ExpiresInHours en variables de entorno de Render.
     private readonly int _expiresHours =
-        int.TryParse(configuration["Jwt:ExpiresInHours"], out var h) ? h : 72;
+        int.TryParse(configuration["Jwt:ExpiresInHours"], out var h) ? h : 168;
 
     // ------------------------------------------------------------------
     // LOGIN
+    // FIX: AuthResponse serializa como { "user": {...}, "token": "..." }
+    //      gracias a JsonNamingPolicy.CamelCase ya configurado en Program.cs.
+    //      UserDto NO incluye avatarUrl en la respuesta de auth para mantener
+    //      el formato exacto esperado: { id, firstName, lastName, email,
+    //      locationId, universityId, averageRating }.
     // ------------------------------------------------------------------
     public async Task<AuthResponse> LoginAsync(LoginRequest req)
     {
@@ -52,6 +60,9 @@ public sealed class AuthService(
 
     // ------------------------------------------------------------------
     // JWT factory
+    // FIX: se usa ClaimTypes.NameIdentifier ("nameid") además de "sub"
+    //      para que User.FindFirstValue(ClaimTypes.NameIdentifier) funcione
+    //      en los controladores protegidos.
     // ------------------------------------------------------------------
     private string GenerateJwt(UserDto user)
     {
@@ -62,7 +73,9 @@ public sealed class AuthService(
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub,   user.Id.ToString()),
+            new Claim(ClaimTypes.NameIdentifier,     user.Id.ToString()),   // FIX: añadido
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
+            new Claim(ClaimTypes.Email,              user.Email),           // FIX: añadido
             new Claim(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString()),
             new Claim("firstName", user.FirstName),
             new Claim("lastName",  user.LastName),

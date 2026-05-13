@@ -8,34 +8,26 @@ namespace MercadoU.Api.Infrastructure.Repositories;
 /// <summary>
 /// Repositorio de Productos usando Dapper.
 /// Todas las queries incluyen WHERE IsDeleted = 0 (soft-delete).
-/// La conversión de Condition ('New', 'LikeNew', …) a ('new'/'used') se hace
-/// en el mapper para mantener compatibilidad con el frontend.
 /// </summary>
 public sealed class ProductRepository(SqlConnectionFactory db) : IProductRepository
 {
-    // ------------------------------------------------------------------
-    // Helper: normaliza Condition de BD → string que espera el frontend
-    // ------------------------------------------------------------------
     private static string NormalizeCondition(string dbCondition) =>
         dbCondition is "New" ? "new" : "used";
 
     private static string NormalizeStatus(string dbStatus) =>
-        dbStatus.ToLowerInvariant();   // 'Active' → 'active', 'Sold' → 'sold', etc.
+        dbStatus.ToLowerInvariant();
 
     // ------------------------------------------------------------------
-    // SEARCH  — delega al SP sp_SearchProducts (Keyset pagination)
+    // SEARCH
     // ------------------------------------------------------------------
     public async Task<IEnumerable<ProductDto>> SearchAsync(ProductSearchParams p)
     {
         using var connection = await db.CreateAsync();
 
-        // El SP acepta 'New'/'LikeNew'/… pero el FE manda 'new'/'used'.
-        // Mapeamos: 'new' → 'New', 'used' → null (el SP filtra por valor exacto,
-        // así que con null devuelve todos los usados).
         string? dbCondition = p.Condition?.ToLowerInvariant() switch
         {
             "new"  => "New",
-            "used" => null,   // el SP devuelve todos si es NULL; no hay forma de filtrar sólo "usados" con el SP actual
+            "used" => null,
             _      => null
         };
 
@@ -59,7 +51,7 @@ public sealed class ProductRepository(SqlConnectionFactory db) : IProductReposit
         return rows.Select(r => new ProductDto(
             Id:              (int)r.Id,
             Title:           (string)r.Title,
-            Description:     string.Empty,   // SP no devuelve Description (optimización); se carga en GetById
+            Description:     string.Empty,
             Price:           (decimal)r.Price,
             NegotiablePrice: r.NegotiablePrice,
             SellerId:        (int)r.SellerId,
@@ -122,7 +114,7 @@ public sealed class ProductRepository(SqlConnectionFactory db) : IProductReposit
     // ------------------------------------------------------------------
     public async Task<IEnumerable<ProductDto>> GetBySellerAsync(int sellerId)
     {
-       using var conn = await db.CreateAsync();
+        using var conn = await db.CreateAsync();
 
         const string sql = """
             SELECT
@@ -165,7 +157,6 @@ public sealed class ProductRepository(SqlConnectionFactory db) : IProductReposit
     {
         using var conn = await db.CreateAsync();
 
-        // El frontend manda condition: 'new'|'used'.  La BD acepta: New|LikeNew|Good|Fair|Poor.
         string dbCondition = req.Condition.ToLowerInvariant() == "new" ? "New" : "Good";
 
         const string sql = """
@@ -193,26 +184,35 @@ public sealed class ProductRepository(SqlConnectionFactory db) : IProductReposit
 
     // ------------------------------------------------------------------
     // IMAGES
+    // FIX: La query original no incluía el campo Id en el SELECT,
+    //      pero ProductImageDto usa un constructor posicional que
+    //      Dapper mapea por nombre de columna. Se añade Id y se
+    //      ajusta el ORDER para que sea determinista.
     // ------------------------------------------------------------------
     public async Task<IEnumerable<ProductImageDto>> GetImagesAsync(int productId)
     {
         using var conn = await db.CreateAsync();
 
         const string sql = """
-            SELECT ProductId, Url, IsPrimary, DisplayOrder
+            SELECT Id, ProductId, Url, IsPrimary, DisplayOrder
             FROM ProductImages
             WHERE ProductId = @ProductId
-            ORDER BY IsPrimary DESC, DisplayOrder ASC
+            ORDER BY IsPrimary DESC, DisplayOrder ASC, Id ASC
             """;
 
-        return await conn.QueryAsync<ProductImageDto>(sql, new { ProductId = productId });
+        var rows = await conn.QueryAsync(sql, new { ProductId = productId });
+
+        return rows.Select(r => new ProductImageDto(
+            ProductId:    (int)r.ProductId,
+            Url:          (string)r.Url,
+            IsPrimary:    r.IsPrimary == true,
+            DisplayOrder: (int)r.DisplayOrder));
     }
 
     public async Task<ProductImageDto> AddImageAsync(int productId, AddImageRequest req)
     {
-       using var conn = await db.CreateAsync();
+        using var conn = await db.CreateAsync();
 
-        // Si es primaria, quitar la bandera de las existentes
         if (req.IsPrimary)
         {
             await conn.ExecuteAsync(
@@ -222,16 +222,23 @@ public sealed class ProductRepository(SqlConnectionFactory db) : IProductReposit
 
         const string sql = """
             INSERT INTO ProductImages (ProductId, Url, IsPrimary, DisplayOrder)
-            OUTPUT INSERTED.ProductId, INSERTED.Url, INSERTED.IsPrimary, INSERTED.DisplayOrder
+            OUTPUT INSERTED.Id, INSERTED.ProductId, INSERTED.Url,
+                   INSERTED.IsPrimary, INSERTED.DisplayOrder
             VALUES (@ProductId, @Url, @IsPrimary,
                     ISNULL((SELECT MAX(DisplayOrder)+1 FROM ProductImages WHERE ProductId = @ProductId), 0))
             """;
 
-        return await conn.QuerySingleAsync<ProductImageDto>(sql, new
+        var row = await conn.QuerySingleAsync(sql, new
         {
             ProductId = productId,
             req.Url,
             IsPrimary = req.IsPrimary ? 1 : 0
         });
+
+        return new ProductImageDto(
+            ProductId:    (int)row.ProductId,
+            Url:          (string)row.Url,
+            IsPrimary:    row.IsPrimary == true,
+            DisplayOrder: (int)row.DisplayOrder);
     }
 }

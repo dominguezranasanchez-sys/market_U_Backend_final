@@ -1,34 +1,10 @@
-using Microsoft.AspNetCore.Mvc;
+// ARCHIVO ELIMINADO — la ruta GET/POST /api/products/{id}/images
+// fue consolidada en ProductsController.cs para evitar conflicto de rutas
+// y el error 500 causado por ambiguedad en el routing de ASP.NET Core.
+//
+// El upload de archivos (POST /api/products/{productId}/images/upload) tampoco
+// se usa: el frontend sube URLs externas, no archivos binarios.
+// Si en el futuro se necesita, reimplementar con inyección de IProductRepository.
 
 namespace MercadoU.Api.Controllers;
-
-[ApiController]
-[Route("api/products/{productId}/images")]
-public class ProductImagesController : ControllerBase
-{
-    [HttpPost("upload")]
-    public async Task<IActionResult> Upload(
-        int productId,
-        IFormFile image)
-    {
-        if (image == null || image.Length == 0)
-            return BadRequest("Imagen inválida.");
-
-        var fileName = $"{Guid.NewGuid()}_{image.FileName}";
-        var folder = Path.Combine("wwwroot", "uploads");
-
-        Directory.CreateDirectory(folder);
-
-        var path = Path.Combine(folder, fileName);
-
-        using var stream = new FileStream(path, FileMode.Create);
-        await image.CopyToAsync(stream);
-
-        return Ok(new
-        {
-            id = 1,
-            productId,
-            imageUrl = $"/uploads/{fileName}"
-        });
-    }
-}
+// (vacío intencionalmente)

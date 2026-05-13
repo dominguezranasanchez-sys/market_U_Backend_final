@@ -30,6 +30,8 @@ public record UserDto(
     decimal AverageRating,
     string? AvatarUrl);   // maps from ProfilePictureUrl
 
+// FIX: ReviewDto expone exactamente los campos que el frontend espera.
+//      Se mantiene CreatedAt para compatibilidad pero el frontend lo ignora si no lo usa.
 public record ReviewDto(
     int Id,
     int AuthorId,
@@ -39,14 +41,9 @@ public record ReviewDto(
     DateTime CreatedAt);
 
 // ============================================================
-// Products  — shape that the React frontend expects
+// Products  — shape que espera el frontend React
 // ============================================================
 
-/// <summary>
-/// DTO principal de producto.  El frontend (mock.ts) espera estos campos en camelCase.
-/// La condición se normaliza: BD usa 'New'/'LikeNew'/'Good'/'Fair'/'Poor'
-///   → frontend usa 'new'/'used' (simplificado).
-/// </summary>
 public record ProductDto(
     int Id,
     string Title,
@@ -56,13 +53,13 @@ public record ProductDto(
     int SellerId,
     int CategoryId,
     int? LocationId,
-    int? UniversityId,     // optional; not stored in Products but passed through
-    string Condition,      // raw DB value: New | LikeNew | Good | Fair | Poor
-    string Status,         // active | sold | paused  (lowercased for FE)
+    int? UniversityId,
+    string Condition,      // normalizado: "new" | "used"
+    string Status,         // "active" | "sold" | "paused"
     int ViewCount,
     int FavoriteCount,
     string? PrimaryImageUrl,
-    string CreatedAt);     // ISO-8601 string for JSON serialization simplicity
+    string CreatedAt);     // ISO-8601
 
 public record ProductImageDto(
     int ProductId,
@@ -91,7 +88,7 @@ public record ProductSearchParams(
     string? Q = null,
     int? CategoryId = null,
     int? LocationId = null,
-    int? UniversityId = null,   // used to filter by seller's university (join)
+    int? UniversityId = null,
     decimal? MinPrice = null,
     decimal? MaxPrice = null,
     string? Condition = null,
@@ -135,7 +132,16 @@ public record ConversationDto(
     int ProductId,
     DateTime? LastMessageAt);
 
+/// <summary>
+/// Request completo (interno): incluye BuyerId resuelto del JWT.
+/// </summary>
 public record StartConversationRequest(int BuyerId, int SellerId, int ProductId);
+
+/// <summary>
+/// FIX: Request que manda el frontend — solo sellerId + productId.
+///      El buyerId se extrae del JWT en el controlador.
+/// </summary>
+public record StartConversationFromFrontendRequest(int SellerId, int ProductId);
 
 public record MessageDto(
     int Id,

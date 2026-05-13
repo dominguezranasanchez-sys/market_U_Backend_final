@@ -1,5 +1,6 @@
 using MercadoU.Api.Application.Interfaces;
 using MercadoU.Api.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MercadoU.Api.Controllers;
@@ -43,6 +44,7 @@ public sealed class ProductsController(IProductRepository repo) : ControllerBase
     // Body: { title, description, price, categoryId, locationId, sellerId, condition, ... }
     // ------------------------------------------------------------------
     [HttpPost]
+    [Authorize]
     public async Task<IActionResult> Create([FromBody] CreateProductRequest req)
     {
         if (req.Price <= 0)
@@ -55,12 +57,21 @@ public sealed class ProductsController(IProductRepository repo) : ControllerBase
 
     // ------------------------------------------------------------------
     // GET /api/products/{id}/images
+    // FIX: El ProductImagesController tenía CRLF y ruta duplicada conflictiva.
+    //      Se centraliza aquí y se eliminó ProductImagesController.cs separado.
     // ------------------------------------------------------------------
     [HttpGet("{id:int}/images")]
     public async Task<IActionResult> GetImages(int id)
     {
-        var images = await repo.GetImagesAsync(id);
-        return Ok(images);
+        try
+        {
+            var images = await repo.GetImagesAsync(id);
+            return Ok(images);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al obtener imágenes.", detail = ex.Message });
+        }
     }
 
     // ------------------------------------------------------------------
@@ -68,6 +79,7 @@ public sealed class ProductsController(IProductRepository repo) : ControllerBase
     // Body: { url: string, isPrimary: boolean }
     // ------------------------------------------------------------------
     [HttpPost("{id:int}/images")]
+    [Authorize]
     public async Task<IActionResult> AddImage(int id, [FromBody] AddImageRequest req)
     {
         var image = await repo.AddImageAsync(id, req);

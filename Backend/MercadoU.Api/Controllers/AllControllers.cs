@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using MercadoU.Api.Application.Interfaces;
 using MercadoU.Api.Application.Services;
 using MercadoU.Api.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MercadoU.Api.Controllers;
@@ -47,8 +49,8 @@ public sealed class AuthController(AuthService authService) : ControllerBase
 // GET  /api/users/{id}
 // GET  /api/users/{id}/products
 // GET  /api/users/{id}/reviews
-// GET  /api/users/{id}/favorites
-// POST /api/users/{userId}/favorites/{productId}
+// GET  /api/users/favorites           ← autenticado via JWT
+// POST /api/users/favorites/{productId} ← autenticado via JWT (toggle)
 // GET  /api/users/{id}/conversations
 // ======================================================================
 [ApiController]
@@ -77,6 +79,7 @@ public sealed class UsersController(
     }
 
     // GET /api/users/{id}/reviews
+    // FIX: devuelve ReviewDto sin campo CreatedAt para que coincida con lo que espera el frontend.
     [HttpGet("{id:int}/reviews")]
     public async Task<IActionResult> GetReviews(int id)
     {
@@ -84,28 +87,59 @@ public sealed class UsersController(
         return Ok(reviews);
     }
 
-    // GET /api/users/{id}/favorites
-    [HttpGet("{id:int}/favorites")]
-    public async Task<IActionResult> GetFavorites(int id)
+    // ---------------------------------------------------------------
+    // GET /api/users/favorites
+    // FIX: endpoint protegido que usa el userId del JWT en lugar de
+    //      requerir {id} en la URL — evita que un usuario pida
+    //      favoritos de otro usuario.
+    // NOTA: Esta ruta literal DEBE estar ANTES de "{id:int}/..." para
+    //       que el router no intente parsear "favorites" como int.
+    // ---------------------------------------------------------------
+    [HttpGet("favorites")]
+    [Authorize]
+    public async Task<IActionResult> GetMyFavorites()
     {
-        var favs = await favRepo.GetByUserAsync(id);
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized(new { message = "Token inválido." });
+
+        var favs = await favRepo.GetByUserAsync(userId.Value);
         return Ok(favs);
     }
 
-    // POST /api/users/{userId}/favorites/{productId}
-    [HttpPost("{userId:int}/favorites/{productId:int}")]
-    public async Task<IActionResult> ToggleFavorite(int userId, int productId)
+    // ---------------------------------------------------------------
+    // POST /api/users/favorites/{productId}
+    // FIX: protegido por JWT; usa el userId del token (no de la URL)
+    //      para evitar que alguien manipule favoritos de otro usuario.
+    //      Devuelve { "active": true/false }.
+    // ---------------------------------------------------------------
+    [HttpPost("favorites/{productId:int}")]
+    [Authorize]
+    public async Task<IActionResult> ToggleMyFavorite(int productId)
     {
-        var active = await favRepo.ToggleAsync(userId, productId);
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized(new { message = "Token inválido." });
+
+        var active = await favRepo.ToggleAsync(userId.Value, productId);
         return Ok(new FavoriteToggleResponse(active));
     }
 
     // GET /api/users/{id}/conversations
     [HttpGet("{id:int}/conversations")]
+    [Authorize]
     public async Task<IActionResult> GetConversations(int id)
     {
         var conversations = await convRepo.GetByUserAsync(id);
         return Ok(conversations);
+    }
+
+    // ---------------------------------------------------------------
+    // Helper: extrae el userId del claim "sub" del JWT
+    // ---------------------------------------------------------------
+    private int? GetCurrentUserId()
+    {
+        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier)
+               ?? User.FindFirstValue("sub");
+        return int.TryParse(sub, out var id) ? id : null;
     }
 }
 
@@ -140,9 +174,9 @@ public sealed class UniversitiesController(IUniversityRepository repo) : Control
 }
 
 // ======================================================================
-// POST /api/conversations                        → startWithSeller
-// GET  /api/conversations/{id}/messages          → messages(conversationId)
-// POST /api/conversations/{id}/messages          → send(...)
+// POST /api/conversations            → crea o devuelve conversación existente
+// GET  /api/conversations/{id}/messages
+// POST /api/conversations/{id}/messages
 // ======================================================================
 [ApiController]
 [Route("api/conversations")]
@@ -151,15 +185,26 @@ public sealed class ConversationsController(
     IMessageRepository msgRepo) : ControllerBase
 {
     // POST /api/conversations
+    // FIX: el frontend manda { sellerId, productId } sin buyerId.
+    //      El buyerId se extrae del JWT (usuario autenticado = comprador).
     [HttpPost]
-    public async Task<IActionResult> Start([FromBody] StartConversationRequest req)
+    [Authorize]
+    public async Task<IActionResult> Start([FromBody] StartConversationFromFrontendRequest req)
     {
-        var conversation = await convRepo.GetOrCreateAsync(req);
+        var buyerIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                        ?? User.FindFirstValue("sub");
+
+        if (!int.TryParse(buyerIdClaim, out var buyerId))
+            return Unauthorized(new { message = "Token inválido o expirado." });
+
+        var fullReq = new StartConversationRequest(buyerId, req.SellerId, req.ProductId);
+        var conversation = await convRepo.GetOrCreateAsync(fullReq);
         return Ok(conversation);
     }
 
     // GET /api/conversations/{id}/messages
     [HttpGet("{id:int}/messages")]
+    [Authorize]
     public async Task<IActionResult> GetMessages(int id)
     {
         var messages = await msgRepo.GetByConversationAsync(id);
@@ -168,8 +213,8 @@ public sealed class ConversationsController(
 
     // POST /api/conversations/{id}/messages
     // Body: { senderId: number, content: string }
-    // El trigger trg_Messages_UpdateConversationLastMessage actualiza LastMessageAt automáticamente.
     [HttpPost("{id:int}/messages")]
+    [Authorize]
     public async Task<IActionResult> Send(int id, [FromBody] SendMessageRequest req)
     {
         var message = await msgRepo.SendAsync(id, req);
