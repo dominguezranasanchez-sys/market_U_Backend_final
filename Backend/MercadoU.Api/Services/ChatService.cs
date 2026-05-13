@@ -1,8 +1,7 @@
-using System.Data.SqlClient;
 using Dapper;
 using MercadoU.Api.DTOs;
 using MercadoU.Api.Models;
-
+using Microsoft.Data.SqlClient;
 namespace MercadoU.Api.Services
 {
     public class ChatService
