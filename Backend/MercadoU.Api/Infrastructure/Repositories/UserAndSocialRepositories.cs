@@ -380,9 +380,9 @@ public sealed class MessageRepository(SqlConnectionFactory db) : IMessageReposit
 
         // El trigger trg_Messages_UpdateConversationLastMessage ya actualiza LastMessageAt.
         // Si no existe el trigger en tu BD, descomenta esto:
-        // await conn.ExecuteAsync(
-        //     "UPDATE Conversations SET LastMessageAt = SYSDATETIME() WHERE Id = @Id",
-        //     new { Id = conversationId });
+         await conn.ExecuteAsync(
+             "UPDATE Conversations SET LastMessageAt = SYSDATETIME() WHERE Id = @Id",
+             new { Id = conversationId });
 
         return MapRow(row);
     }
